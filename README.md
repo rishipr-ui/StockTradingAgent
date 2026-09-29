@@ -183,16 +183,23 @@ Each run writes `results/<run_name>.jsonl`. The metrics command computes total
 return, maximum drawdown, win rate, trade count, repeated-mistake rate,
 losses avoided, and an equal-weighted buy-and-hold baseline.
 
-The current checkout does not contain generated `results/*.jsonl` files, so
-there are no honest numeric results to report here yet. After reproducing the
-four runs, `results/comparison.csv` will contain the comparison table:
+The current checkout includes completed tiny-mode test runs with 15 decision
+records each. These results use the `RELIANCE.NS` ticker and are intended for
+dashboard demonstration, not statistical evaluation. The full-period commands
+above remain the reproducible research configuration.
 
 | Run | Mode | Period | Total return | Max drawdown | Win rate | Repeated-mistake rate | Losses avoided | Buy-and-hold return |
 | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
 | `baseline_train` | No memory | 2024-01-01 to 2024-06-30 | generated locally | generated locally | generated locally | generated locally | generated locally | generated locally |
 | `memory_train` | Hindsight | 2024-01-01 to 2024-06-30 | generated locally | generated locally | generated locally | generated locally | generated locally | generated locally |
-| `memory_test` | Hindsight | 2024-07-01 to 2024-12-31 | generated locally | generated locally | generated locally | generated locally | generated locally | generated locally |
-| `baseline_test` | No memory | 2024-07-01 to 2024-12-31 | generated locally | generated locally | generated locally | generated locally | generated locally | generated locally |
+| `memory_test` | Hindsight | 2024-07-01 to 2024-12-31 | **0.00%** | **0.00%** | **50.00%** | **0.00%** | **4** | **-12.12%** |
+| `baseline_test` | No memory | 2024-07-01 to 2024-12-31 | **-10.01%** | **10.01%** | **25.00%** | **0.00%** | **2** | **-12.12%** |
+
+The completed test runs recorded 6 trades with memory and 4 without memory.
+The memory run finished flat while the no-memory run lost 10.01%; both
+improved on the equal-weighted buy-and-hold baseline of -12.12% in this small
+sample. The dashboard compares these local JSONL records and can replay each
+decision, recalled lesson, and five-day outcome.
 
 ## Limitations
 
