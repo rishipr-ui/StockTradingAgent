@@ -1,0 +1,12 @@
+yfinance
+pandas
+numpy
+python-dotenv
+groq
+streamlit
+plotly
+pytest
+pydantic
+tenacity
+hindsight-client
+alpaca-py
