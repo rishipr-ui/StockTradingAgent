@@ -443,7 +443,7 @@ def run_backtest(
                 }
                 decision = _cached_call(
                     cache,
-                    "judge",
+                    "judge_v4",
                     judge_payload,
                     lambda: _groq_call_with_usage(
                         "judge",
@@ -454,7 +454,7 @@ def run_backtest(
                             bear,
                             recalled,
                             track_record,
-                            **({"max_tokens": 200} if tiny else {}),
+                            **({"max_tokens": 400} if tiny else {}),
                         ),
                         token_total,
                     ),

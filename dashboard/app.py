@@ -374,6 +374,10 @@ def main() -> None:
         tickers = sorted({str(row.get("ticker")) for row in records if row.get("ticker")})
         ticker = st.selectbox("Ticker", ["All tickers"] + tickers)
         st.caption(f"{len(records)} recorded decisions")
+        if selected_run in {"memory_test", "baseline_test"} and len(records) < 15:
+            st.warning(
+                f"{selected_run} is incomplete ({len(records)}/15 tiny-mode decisions)."
+            )
     ticker_filter = None if ticker == "All tickers" else ticker
 
     all_run_records = {run: _records_for_run(run) for run in runs}
@@ -383,16 +387,33 @@ def main() -> None:
     baseline_metrics = compute_run_metrics(baseline_records)
     memory_metrics = compute_run_metrics(memory_records)
     cards = st.columns(5)
-    comparisons = [
-        ("Total return", _pct(memory_metrics["total_return"]), _pct(baseline_metrics["total_return"]), "#00d3a7", False),
-        ("Max drawdown", _pct(memory_metrics["max_drawdown"]), _pct(baseline_metrics["max_drawdown"]), "#ff5b61", False),
-        ("Win rate", _pct(memory_metrics["win_rate"]), _pct(baseline_metrics["win_rate"]), "#00d3a7", False),
-        ("Repeated-mistake rate", _pct(memory_metrics["repeated_mistake_rate"]), _pct(baseline_metrics["repeated_mistake_rate"]), "#4d9cff", True),
-        ("Mistakes avoided", str(memory_metrics["losses_avoided"]), str(baseline_metrics["losses_avoided"]), "#4d9cff", False),
-    ]
-    for column, values in zip(cards, comparisons):
+    comparison_complete = len(baseline_records) >= 15 and len(memory_records) >= 15
+    if comparison_complete:
+        card_values = [
+            ("Total return", _pct(memory_metrics["total_return"]), _pct(baseline_metrics["total_return"]), "#00d3a7", False),
+            ("Max drawdown", _pct(memory_metrics["max_drawdown"]), _pct(baseline_metrics["max_drawdown"]), "#ff5b61", False),
+            ("Win rate", _pct(memory_metrics["win_rate"]), _pct(baseline_metrics["win_rate"]), "#00d3a7", False),
+            ("Repeated-mistake rate", _pct(memory_metrics["repeated_mistake_rate"]), _pct(baseline_metrics["repeated_mistake_rate"]), "#4d9cff", True),
+            ("Mistakes avoided", str(memory_metrics["losses_avoided"]), str(baseline_metrics["losses_avoided"]), "#4d9cff", False),
+        ]
+    else:
+        card_values = [
+            ("Total return", _pct(metrics["total_return"]), "selected run", "#00d3a7", False),
+            ("Max drawdown", _pct(metrics["max_drawdown"]), "selected run", "#ff5b61", False),
+            ("Win rate", _pct(metrics["win_rate"]), "selected run", "#00d3a7", False),
+            ("Repeated-mistake rate", _pct(metrics["repeated_mistake_rate"]), "selected run", "#4d9cff", True),
+            ("Mistakes avoided", str(metrics["losses_avoided"]), "selected run", "#4d9cff", False),
+        ]
+        st.info(
+            "Memory vs. no-memory cards are hidden until both test runs contain "
+            "the full tiny-mode decision set."
+        )
+    for column, values in zip(cards, card_values):
         with column:
-            _comparison_card(*values)
+            if comparison_complete:
+                _comparison_card(*values)
+            else:
+                _metric_card(values[0], values[1], values[3])
 
     st.markdown("<div class='section-gap'></div>", unsafe_allow_html=True)
     chart_col, trust_col = st.columns([2, 1.08])

@@ -34,6 +34,47 @@ def test_judge_validates_json(monkeypatch):
     assert decision.confidence == 0.8
 
 
+def test_judge_normalizes_wrapped_json_and_action(monkeypatch):
+    monkeypatch.setattr(
+        agents,
+        "_complete",
+        lambda prompt, **kwargs: (
+            '```json\n{"action":"buy","size_pct":5,"confidence":0.8,'
+            '"reasoning":"Indicators support the setup.","memories_used":[],'
+            '"setup":"breakout","market_regime":"bullish uptrend"}\n```'
+        ),
+    )
+
+    decision = agents.judge_decide("INFY.NS", "RSI 55", "bull", "bear", [], [])
+
+    assert decision.action == "BUY"
+    assert decision.market_regime == "bullish uptrend"
+
+
+def test_judge_signal_tiebreaker_creates_bounded_trade(monkeypatch):
+    monkeypatch.setattr(
+        agents,
+        "_complete",
+        lambda prompt, **kwargs: (
+            '{"action":"HOLD","size_pct":0,"confidence":0.6,'
+            '"reasoning":"Signals are mixed.","memories_used":[],'
+            '"setup":"breakdown","market_regime":"bearish"}'
+        ),
+    )
+
+    decision = agents.judge_decide(
+        "INFY.NS",
+        "RSI 29, price below SMA50, volume 1.4x average",
+        "bull",
+        "bear",
+        [],
+        [],
+    )
+
+    assert decision.action == "BUY"
+    assert decision.size_pct == 5
+
+
 def test_judge_falls_back_after_invalid_json(monkeypatch):
     monkeypatch.setattr(agents, "_complete", lambda prompt, **kwargs: "not json")
 

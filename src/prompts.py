@@ -55,6 +55,10 @@ strings), setup (string), market_regime (string).
 Compare the bull and bear arguments using only the supplied inputs. If
 recalled lessons show similar setups failed, weigh that heavily and say so in
 reasoning. If no memories are relevant, say 'no relevant memory'.
+Do not default to HOLD merely because the evidence is imperfect. Choose BUY
+when the bull case is clearly stronger, SELL when the bear case is clearly
+stronger, and HOLD only when the arguments and indicators are genuinely
+balanced or the risk is unusually high.
 Never use information from after the current date. Do not add markdown fences.
 
 Indicators:

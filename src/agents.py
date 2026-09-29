@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import os
+import re
+import sys
 from typing import Any, Callable
 
 from dotenv import load_dotenv
@@ -80,6 +82,84 @@ def _complete(
     if max_tokens is not None:
         kwargs["max_tokens"] = max_tokens
     return _content(_client().chat.completions.create(**kwargs))
+
+
+def _parse_judge_response(raw: str) -> JudgeDecision:
+    """Parse common JSON response wrappers and normalize enum-like fields."""
+    text = raw.strip()
+    if text.startswith("```"):
+        text = re.sub(r"^```(?:json)?\s*|\s*```$", "", text, flags=re.IGNORECASE)
+    try:
+        payload = json.loads(text)
+    except json.JSONDecodeError:
+        start = text.find("{")
+        end = text.rfind("}")
+        if start < 0 or end <= start:
+            raise
+        payload = json.loads(text[start : end + 1])
+    if not isinstance(payload, dict):
+        raise ValueError("Judge response must be a JSON object")
+    normalized = dict(payload)
+    if isinstance(normalized.get("action"), str):
+        normalized["action"] = normalized["action"].strip().upper()
+    if isinstance(normalized.get("memories_used"), str):
+        normalized["memories_used"] = [normalized["memories_used"]]
+    return JudgeDecision.model_validate(normalized)
+
+
+def _apply_signal_tiebreaker(
+    decision: JudgeDecision,
+    indicators_summary: str,
+) -> JudgeDecision:
+    """Turn only strong, explicit indicator signals into a bounded action."""
+    if decision.action != "HOLD":
+        return decision
+    text = indicators_summary.lower()
+    rsi_match = re.search(r"rsi\s+(\d+(?:\.\d+)?)", text)
+    volume_match = re.search(r"volume\s+(\d+(?:\.\d+)?)x", text)
+    if not rsi_match:
+        return decision
+    rsi = float(rsi_match.group(1))
+    volume = float(volume_match.group(1)) if volume_match else None
+    below_sma50 = "below sma50" in text
+    above_sma50 = "above sma50" in text
+    if rsi <= 35 and below_sma50 and (volume is None or volume >= 1):
+        return decision.model_copy(
+            update={
+                "action": "BUY",
+                "size_pct": 5.0,
+                "confidence": max(decision.confidence, 0.55),
+                "reasoning": (
+                    f"{decision.reasoning} Signal tie-breaker: RSI {rsi:.0f} "
+                    "is oversold with price below SMA50 and sufficient volume."
+                ),
+            }
+        )
+    if rsi >= 70 and above_sma50 and volume is not None and volume < 1:
+        return decision.model_copy(
+            update={
+                "action": "SELL",
+                "size_pct": 5.0,
+                "confidence": max(decision.confidence, 0.55),
+                "reasoning": (
+                    f"{decision.reasoning} Signal tie-breaker: RSI {rsi:.0f} "
+                    "is overbought above SMA50 on weak volume."
+                ),
+            }
+        )
+    if rsi < 50 and below_sma50 and (volume is None or volume >= 1):
+        return decision.model_copy(
+            update={
+                "action": "SELL",
+                "size_pct": 5.0,
+                "confidence": max(decision.confidence, 0.55),
+                "reasoning": (
+                    f"{decision.reasoning} Signal tie-breaker: RSI {rsi:.0f} "
+                    "is weak below SMA50 with active volume."
+                ),
+            }
+        )
+    return decision
 
 
 def _under_word_limit(text: str, limit: int = 120) -> str:
@@ -159,8 +239,7 @@ def bear_argue(
 def _judge_call(prompt: str, max_tokens: int | None = None) -> JudgeDecision:
     """Generate and validate one structured judge response; retry failures."""
     raw = _complete(prompt, json_mode=True, max_tokens=max_tokens)
-    payload = json.loads(raw)
-    return JudgeDecision.model_validate(payload)
+    return _parse_judge_response(raw)
 
 
 def judge_decide(
@@ -183,8 +262,13 @@ def judge_decide(
         agent_track_record=", ".join(agent_track_record) or "no track record",
     )
     try:
-        return _judge_call(prompt, max_tokens=max_tokens)
-    except Exception:
+        decision = _judge_call(prompt, max_tokens=max_tokens)
+        return _apply_signal_tiebreaker(decision, indicators_summary)
+    except Exception as exc:
+        print(
+            f"Judge fallback for {ticker}: {type(exc).__name__}: {exc}",
+            file=sys.stderr,
+        )
         return JudgeDecision(
             action="HOLD",
             size_pct=0,
